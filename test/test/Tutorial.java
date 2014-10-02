@@ -56,9 +56,9 @@ public class Tutorial {
          s2.removeSection("/subject01/cell02");
          s2.addProperty("cell01#cellType", "CA-1");
          //show the tree
-         System.out.println("Display the tree in tree view dialog, just for illustration! Not suited to really work with it! Also works in Matlab...");
-         System.out.println("\ts.displayTree();");
-         s.displayTree();
+         //System.out.println("Display the tree in tree view dialog, just for illustration! Not suited to really work with it! Also works in Matlab...");
+         //System.out.println("\ts.displayTree();");
+         //s.displayTree();
 
          askForInput();
          

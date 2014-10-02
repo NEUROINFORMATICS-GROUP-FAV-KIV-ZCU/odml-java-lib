@@ -17,19 +17,18 @@ package odml.core;
  * You should have received a copy of the GNU Lesser General Public License
  * along with this software.  If not, see <http://www.gnu.org/licenses/>.
  */
-import org.apache.commons.codec.binary.Base64;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.swing.tree.TreeNode;
 import java.io.*;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URL;
+import java.net.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.zip.CRC32;
 
+import org.apache.commons.codec.binary.Base64;
+import org.joda.time.LocalDate;
+import org.joda.time.LocalTime;
+import org.slf4j.*;
+
+// TODO: Auto-generated Javadoc
 /**
  * {@link Value} entities contain the values associated with a {@link Property}.
  * Values have the following fields:
@@ -38,849 +37,1094 @@ import java.util.zip.CRC32;
  * <li>uncertainty - optional, an estimation of the value's uncertainty.</li>
  * <li>unit - optional, the vlaue's unit.</li>
  * <li>type - optional, the data type of the value.</li>
- * <li>filename - optional, the default file name which should be used when saving the object.</li>
- * <li>definition - optional, here additional comments on the value of the property can be given.</li>
- * <li>reference - optional, here additional comments on the value of the property can be given.</li>
- * <li>encoder - optional. If binary content is included in the {@link Value}, indicate the encoder used in the form.</li>
- * <li>checksum - optional. The checksum of the file included in the {@link Value}. State the checksum in the form algorithm$checksum (e.g. crc32$...).</li>
- * </ol> 
- *   
- * @since 06.2010
+ * <li>filename - optional, the default file name which should be used when
+ * saving the object.</li>
+ * <li>definition - optional, here additional comments on the value of the
+ * property can be given.</li>
+ * <li>reference - optional, here additional comments on the value of the
+ * property can be given.</li>
+ * <li>encoder - optional. If binary content is included in the {@link Value},
+ * indicate the encoder used in the form.</li>
+ * <li>checksum - optional. The checksum of the file included in the
+ * {@link Value}. State the checksum in the form algorithm$checksum (e.g.
+ * crc32$...).</li>
+ * </ol>
+ * 
  * @author Jan Grewe, Christine Seitz
- *
+ * @since 06.2010
  */
-public class Value extends Object implements Serializable, Cloneable, TreeNode {
-
-   static Logger                         logger           = LoggerFactory.getLogger(Value.class);
-   private static final long             serialVersionUID = 147L;
-   private String                        unit             = null, type = null, reference = null;
-   private Object                        content, uncertainty;
-   private String                        definition, filename, checksum, encoder;
-   private Property                      parent;
-   private final static SimpleDateFormat dateFormat       = new SimpleDateFormat("yyyy-MM-dd");
-   private final static SimpleDateFormat datetimeFormat   = new SimpleDateFormat(
-                                                                "yyyy-MM-dd hh:mm:ss");
-   private final static SimpleDateFormat timeFormat       = new SimpleDateFormat("hh:mm:ss");
-   private final static String           regExNTuple      = "(?i)[0-9]{1,};[0-9]{1,}";
-
-
-   //*****************************************************************
-   //**************				constructors			***********	
-   //*****************************************************************
-   /**
-    * @param content
-    * @param unit
-    * @throws Exception
-    */
-   protected Value(Object content, String unit) throws Exception {
-      this(content, unit, null, null);
-   }
-
-
-   /**
-    * 
-    * @param content
-    * @param unit
-    * @param uncertainty
-    * @throws Exception
-    */
-   protected Value(Object content, String unit, Object uncertainty) throws Exception {
-      this(content, unit, uncertainty, null);
-   }
-
-
-   /**
-    * 
-    * @param content
-    * @param unit
-    * @param uncertainty
-    * @param type
-    * @throws Exception
-    */
-   protected Value(Object content, String unit, Object uncertainty, String type) throws Exception {
-      this(content, unit, uncertainty, type, null, null, null);
-   }
-
-
-   /**
-    * Creates a Value from a Vector containing the value data in the following sequence:
-    * "content","unit","uncertainty","type","fileName","definition","reference"
-    * @param data {@link Vector} of Objects that contains the data in the sequence as the {@link Value}
-    * @throws Exception 
-    */
-   protected Value(Vector<Object> data) throws Exception {
-      this(data.get(0), (String) data.get(1), data.get(2), (String) data.get(3), (String) data
-            .get(4), (String) data.get(5),
-            (String) data.get(6));
-   }
-
-
-   /**
-    * Constructor for a Value containing all possible information. Any of the arguments
-    * may be null except for Object value and it's unit.
-    * @param content
-    * @param unit
-    * @param uncertainty
-    * @param type
-    * @param filename
-    * @param definition
-    * @param reference
-    * @throws Exception
-    */
-   protected Value(Object content, String unit, Object uncertainty, String type, String filename,
-                   String definition, String reference) throws Exception {
-      this(content, unit, uncertainty, type, filename, definition, reference, "", "");
-   }
-
-
-   protected Value(Object content, String unit, Object uncertainty, String type, String filename,
-                   String definition, String reference, String encoder) throws Exception {
-      this(content, unit, uncertainty, type, filename, definition, reference, encoder, "");
-   }
-
-
-   protected Value(Object content, String unit, Object uncertainty, String type, String filename,
-                   String definition, String reference, String encoder, String checksum)
-                                                                                        throws Exception {
-      if (type == null || type.isEmpty()) {
-         type = inferOdmlType(content);
-      }
-      this.content = null;
-      this.uncertainty = null;
-      this.filename = "";
-      this.definition = "";
-      this.reference = "";
-      this.checksum = "";
-      this.encoder = "";
-      this.type = type;
-      if (type.equalsIgnoreCase("binary")) {
-         this.content = encodeContent(content);
-      } else {
-         this.content = checkDatatype(content, type);
-      }
-      if (uncertainty == null) {
-         this.uncertainty = "";
-      } else {
-         try {
-            this.uncertainty = uncertainty;
-         } catch (Exception e) {
-            this.uncertainty = "";
-            logger.error("", e);
-         }
-      }
-      if (filename != null && !filename.isEmpty()) {
-         this.filename = filename;
-      }
-      if (definition == null) {
-         this.definition = "";
-      } else {
-         this.definition = definition;
-      }
-      if (reference == null) {
-         this.reference = "";
-      } else {
-         this.reference = reference;
-      }
-      if (unit == null) {
-         this.unit = "";
-      } else {
-         this.unit = unit;
-      }
-   }
-
-
-   /**
-    * Returns whether or not a {@link Value} is empty.
-    * @return {@link Boolean}: true if value is empty, false otherwise.
-    */
-   public boolean isEmpty() {
-      return (content == null)
-            || (content != null && content instanceof String && ((String) content).isEmpty());
-   }
-
-
-   /**
-    * Checks the passed values class and returns the odML type.
-    * @param value {@link Object} the value;
-    * @return {@link String} the type under which odml refers to it.
-    */
-   public static String inferOdmlType(Object value) {
-      if (value instanceof Integer) {
-         return "int";
-      } else if (value instanceof Boolean) {
-         return "boolean";
-      } else if (value instanceof Date) {
-         return "datetime";
-      } else if (value instanceof Float) {
-         return "float";
-      } else if (value instanceof Double) {
-         return "float";
-      } else if (value instanceof URL) {
-         return "url";
-      } else if (value instanceof File) {
-         return "binary";
-      } else if (value instanceof Date) {
-         return "date";
-      } else if (value instanceof String) {
-         return inferDatatypeFromString(value.toString());
-      }
-      return "string";
-   }
-
-
-   /**
-    * Checks and converts the content passed to the Value.
-    * @param content Object: The content that needs to be checked.
-    * @param type String: The type of the content
-    * @return returns the content in the correct class or null if an error occurred.
-    */
-   public static Object checkDatatype(Object content, String type) {
-      if (content == null || content.toString().isEmpty()) {
-         logger.info("Found empty content!!!");
-         return null;
-      }
-      if (type.matches("(?i)int.*")) {
-         if (content instanceof java.lang.Integer) {
-            return content;
-         } else if (content instanceof java.lang.String) {
-            if (((java.lang.String) content).contains(".") || ((String) content).contains(",")) {
-               int index = ((String) content).indexOf(".");
-               if (index == -1)
-                  index = ((String) content).indexOf(",");
-               content = ((String) content).substring(0, index);
-            }
-            return Integer.parseInt((String) content);
-         } else if (content instanceof Number) {
-            return ((Number) content).intValue();
-         } else {
-            logger.error("Cannot convert value of class " + content.getClass().getSimpleName()
-                  + " to requested type: " + type);
-            return null;
-         }
-      } else if (type.matches("(?i)float.*")) {
-         if (content instanceof Number) {
-            return ((Number) content).floatValue();
-         } else if (content instanceof java.lang.String) { // float could be masked as string
-            return Float.parseFloat((String) content);
-         } else {
-            logger.error("Cannot convert value of class " + content.getClass().getSimpleName()
-                  + " to requested type " + type);
-            return null;
-         }
-      } else if (type.matches("(?i)string") || type.matches("(?i)text")) {
-         logger.debug("type specified:\tstring");
-         if (content instanceof String) {
-            return content;
-         } else if (content instanceof Character) {
-            return ((Character) content).toString();
-         } else {
-            logger.error("Error converting content of class: "
-                  + content.getClass().getSimpleName() + " to requested type: " + type);
-            return null;
-         }
-      } else if (type.matches("(?i)n-tuple")) {
-         if (content instanceof String && ((String) content).matches(regExNTuple)) {
-            return content;
-         } else {
-            logger.error("Value does not match the n-tuple definition (regExp: "
-                  + regExNTuple + ")!");
-            return null;
-         }
-      } else if (type.matches("(?i)date")) {
-         if (content instanceof java.util.Date) {
-            try {
-               Date date = dateFormat.parse(dateFormat.format(content));
-               return date;
-            } catch (Exception e) {
-               logger.error(e.getMessage());
-            }
-         } else if (content instanceof java.lang.String) {
-            try {
-               Date date = dateFormat.parse((String) content);
-               return date;
-            } catch (Exception e) {
-               logger.error("Cannot convert passed String : " + content
-                     + " to a date value!");
-               return null;
-            }
-         } else {
-            logger.error("Cannot convert passed object of class: "
-                  + content.getClass().getSimpleName()
-                  + " to a date value!");
-            return null;
-         }
-      } else if (type.matches("(?i)time")) {
-         if (content instanceof java.util.Date) {
-            try {
-               Date date = timeFormat.parse(timeFormat.format(content));
-               return date;
-            } catch (Exception e) {
-               logger.error(e.getMessage());
-            }
-         } else if (content instanceof java.lang.String) {
-            try {
-               Date date = timeFormat.parse((String) content);
-               return date;
-            } catch (Exception e) {
-               logger.error(e.getLocalizedMessage());
-            }
-         } else {
-            logger.error("Cannot convert passed object of class: "
-                  + content.getClass().getSimpleName()
-                  + " to a time value!");
-            return null;
-         }
-      } else if (type.matches("(?i)datetime")) {
-         if (content instanceof java.util.Date) {
-            try {
-               Date date = datetimeFormat.parse(datetimeFormat.format(content));
-               return date;
-            } catch (Exception e) {
-               logger.error(e.getLocalizedMessage());
-            }
-         } else if (content instanceof java.lang.String) {
-            try {
-               Date date = datetimeFormat.parse((String) content);
-               return date;
-            } catch (Exception e) {
-               logger.error(e.getLocalizedMessage());
-            }
-         } else {
-            logger.error("Cannot convert passed object of class: "
-                  + content.getClass().getSimpleName()
-                  + " to a datetime value!");
-            return null;
-         }
-      } else if (type.matches("(?i)bool.*")) {
-         if (content instanceof java.lang.Boolean) {
-            return content;
-         } else if (content instanceof java.lang.String) {
-            return Boolean.parseBoolean((String) content);
-         } else {
-            logger.error("Cannot convert object of class: "
-                  + content.getClass().getSimpleName() + " to a " + type + ": value!");
-            return null;
-         }
-      } else if (type.matches("(?i)URL")) {
-         if (content instanceof java.net.URL) {
-            return content;
-         } else if (content instanceof java.lang.String) {
-            try {
-               URL parsedUrl = new URL((String) content);
-               return parsedUrl;
-            } catch (MalformedURLException e) {
-               logger.error(e.getLocalizedMessage());
-            }
-         } else {
-            logger.error("Could not convert " + content.getClass().getSimpleName()
-                  + " to required type: " + type);
-            return null;
-         }
-      } else if (type.matches("(?i)binary")) {
-         if (content instanceof java.lang.String || content instanceof File
-               || content instanceof URL || content instanceof URI) {
-            return content;
-         } else {
-            logger.error("Binary (String), File, URL, or URI content expected, "
-                  + content.getClass().getSimpleName() + " found!");
-            return null;
-         }
-      } else if (type.matches("(?i)person")) {
-         if (!(content instanceof java.lang.String)) {
-            logger.error("Expect a person to be of class expected, not " + content.getClass());
-            return null;
-         } else {
-            return content;
-         }
-      } else {
-         type = "string";
-         logger.warn("type unknown:\thandling as 'string':\tcorrect");
-         return content;
-      }
-      return null;
-   }
-
-
-   /**
-    * Checks a {@link String} in more detail, and returns the odml data type.
-    * 
-    * @param content {@link String}
-    * @return {@link String}: the odml type that matches best.
-    */
-   protected static String inferDatatypeFromString(String content) {
-      content = content.trim();
-      //      String regExDate = "[0-9]{4}-(((([0][13-9])|([1][0-2]))-(([0-2][0-9])|([3][01])))|(([0][2]-[0-2][0-9])))";
-      ////      String regExDateGeneral = "[0-9]{4}-[0-9]{2}-[0-9]{2}";
-      //      String regExTime = "(([01][0-9])|([2][0-4])):(([0-5][0-9])|([6][0])):(([0-5][0-9])|([6][0]))"; // for time
-      ////      String regExTimeGeneral = "[0-9]{2}:[0-9]{2}:[0-9]{2}";
-      //      String regExInt = "^[+-]?[0-9]+$";
-      //      String regExFloat = "^[+-]?[0-9]*\\.[0-9]+$";
-      //      String regExBool = "(true)|(false)|1|0";
-      //      String regExDatetimeGeneral = "[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}";
-
-      HashMap<String, String> regExpMap = new HashMap<String, String>();
-      regExpMap.put("date",
-            "[0-9]{4}-(((([0][13-9])|([1][0-2]))-(([0-2][0-9])|([3][01])))|(([0][2]-[0-2][0-9])))");
-      regExpMap.put("datetime", "[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}");
-      regExpMap.put("time",
-            "(([01][0-9])|([2][0-4])):(([0-5][0-9])|([6][0])):(([0-5][0-9])|([6][0]))");
-      regExpMap.put("int", "^[+-]?[0-9]+$");
-      regExpMap.put("float", "^[+-]?[0-9]*\\.[0-9]+$");
-      regExpMap.put("boolean", "(true)|(false)|1|0");
-      regExpMap.put("n-tuple", regExNTuple);
-      Iterator<String> iter = regExpMap.keySet().iterator();
-      while (iter.hasNext()) {
-         String key = iter.next();
-         if (content.toLowerCase().matches(regExpMap.get(key)))
-            return key;
-      }
-      return "string";
-   }
-
-
-   //***************************************************************************************
-   //*****					methods to handle binary content					**********
-   //***************************************************************************************
-   /**
-    * Function to convert the content of the indicated file to an array of bytes.
-    * Is primarily for internal use to Base64 encode binary data. 
-    * @param file {@link File}: the file to convert.
-    * @return byte[]: the array of bytes contained in the file.
-    * @throws IOException
-    */
-   public static byte[] getBytesFromFile(File file) throws IOException {
-      InputStream in = new FileInputStream(file);
-      long length = file.length();
-      if (length > Integer.MAX_VALUE) {
-         throw new IOException("File exceeds max value: " + Integer.MAX_VALUE);
-      }
-      //Create the byte array to hold the data
-      byte[] bytes = new byte[(int) length];
-      //Read in the bytes
-      int offset = 0;
-      int numRead = 0;
-      while (offset < bytes.length &&
-            (numRead = in.read(bytes, offset, bytes.length - offset)) >= 0) {
-         offset += numRead;
-      }
-      //Ensure all the bytes have been read
-      if (offset < bytes.length) {
-         throw new IOException("Could not completely read file" + file.getName());
-      }
-      in.close();
-      return bytes;
-   }
-
-
-   /**
-    * Writes the value content which is Base64 encoded to disc.
-    * @param content {@link String}: the value content.
-    * @param outFile {@link File}: the File into which the decoded content should be written
-    */
-   public static void writeBinaryToDisc(String content, File outFile) throws Exception {
-      if (outFile == null) {
-         throw new Exception("Argument outFile not specified!");
-      }
-      FileOutputStream os = null;
-      try {
-         os = new FileOutputStream(outFile);
-      } catch (Exception e) {
-         logger.error("", e);
-         throw e;
-      }
-      Base64 base = new Base64();
-      byte[] bytes = base.decode(content.getBytes("UTF-8"));
-      os.write(bytes);
-      os.flush();
-      os.close();
-   }
-
-
-   //****************************************************************
-   //*****					getter & setter					**********
-   //****************************************************************
-   // associated property (so to say dad in tree)
-   protected void setAssociatedProperty(Property property) {
-      this.parent = property;
-   }
-
-
-   // value
-   protected void setContent(Object content) {
-      this.content = content;
-   }
-
-
-   protected Object getContent() {
-      return this.content;
-   }
-
-
-   // unit
-   protected void setUnit(String unit) {
-      this.unit = unit;
-   }
-
-
-   protected String getUnit() {
-      return this.unit;
-   }
-
-
-   // uncertainty
-   protected void setUncertainty(Object uncertainty) {
-      this.uncertainty = uncertainty;
-   }
-
-
-   protected Object getUncertainty() {
-      return this.uncertainty;
-   }
-
-
-   // type
-   protected void setType(String type) {
-      this.type = type;
-   }
-
-
-   protected String getType() {
-      return this.type;
-   }
-
-
-   // Filename
-   protected void setFilename(String filename) {
-      this.filename = filename;
-   }
-
-
-   protected String getFilename() {
-      return this.filename;
-   }
-
-
-   // definition
-   protected void setDefinition(String comment) {
-      this.definition = comment;
-   }
-
-
-   protected String getDefinition() {
-      return this.definition;
-   }
-
-
-   // reference
-   protected void setReference(String reference) {
-      this.reference = reference;
-   }
-
-
-   protected String getReference() {
-      return this.reference;
-   }
-
-
-   protected void setEncoder(String encoder) {
-      if (encoder == null || encoder.isEmpty())
-         this.encoder = "";
-      else
-         this.encoder = encoder;
-   }
-
-
-   protected String getEncoder() {
-      return this.encoder;
-   }
-
-
-   protected void setChecksum(String checksum) {
-      if (checksum == null || checksum.isEmpty())
-         this.checksum = "";
-      else
-         this.checksum = checksum;
-   }
-
-
-   protected String getChecksum() {
-      return this.checksum;
-   }
-
-
-   /**
-    * Validates this {@link Value} against the terminology definition.
-    * This function is marked @deprecated and will be removed in future versions!
-    * 
-    * Use validate instead!
-    * 
-    * @param termProp Property: The definition retrieved from a terminology.
-    */
-   @Deprecated
-   public void compareToTerminology(Property termProp) {
-      validate(termProp);
-   }
-
-
-   /**
-    * Validates a {@link Value} against the value definition in a terminology. 
-    * 
-    * @param terminologyProperty {@link Property}: The respective {@link Property} 
-    * that defines the kind of value.
-    * 
-    */
-   public void validate(Property terminologyProperty) {
-      if (this.type != null && !this.type.isEmpty()) {
-         if (!this.type.equalsIgnoreCase(terminologyProperty.getType())) {
-            logger.warn("Value type (" + this.type
-                  + ") does not match the one given in the terminology("
-                  + terminologyProperty.getType()
-                  + ")! To guarantee interoperability please ckeck. However, kept provided type.");
-         }
-      } else {
-         try {
-            checkDatatype(this.content, terminologyProperty.getType());
-            this.setType(terminologyProperty.getType());
-            logger.info("Added type information to value.");
-         } catch (Exception e) {
-            logger
-                  .warn("Value is not compatible with the type information the terminology suggests ("
-                        + terminologyProperty.getType()
-                        + "). Did not change anything, but please check");
-         }
-      }
-      if (this.unit != null && !this.unit.isEmpty()) {
-         if (!this.unit.equalsIgnoreCase(terminologyProperty.getUnit(0))) {
-            logger.warn("Value unit (" + this.unit
-                  + ") does not match the one given in the terminology("
-                  + terminologyProperty.getUnit()
-                  + ")! To guarantee interoperability please ckeck. However, kept provided unit.");
-         }
-      } else {
-         if (terminologyProperty.getUnit() != null && !terminologyProperty.getUnit(0).isEmpty()) {
-            this.setUnit(terminologyProperty.getUnit(0));
-            logger.info("Added unit " + terminologyProperty.getUnit() + " information to value.");
-         }
-      }
-   }
-
-
-   /**
-    * TODO
-    * Compares the content of two values and returns whether they are equal. So far this
-    * concerns only the value content. Not type,definition etc.
-    * @param other
-    * @return {@link Boolean} <b>true</b> if the content of two values matches, <b>false</b> otherwise.
-    */
-   public boolean isEqual(Value other) {
-      if (this.content.toString() != other.content.toString()) {
-         return false;
-      }
-      return true;
-   }
-
-
-   /**
-    * Base64 encodes the content if it represents either a File, URL, URI, or String that can be converted to a file.
-    * @param content
-    * @return
-    */
-   private String encodeContent(Object content) {
-      if (content == null) {
-         return null;
-      }
-      logger.info("Encoding content: " + content.toString());
-      String encoded = null;
-      File file = null;
-      if (content instanceof String) {
-         try {
-            URI uri = new URI((String) content);
-            file = new File(uri);
-         } catch (Exception e) {
-            return (String) content;
-         }
-      } else if (content instanceof URL) {
-         try {
-            file = new File(((URL) content).toURI());
-         } catch (Exception e) {
-            logger.error("Could not create a file from the specified URL: " + content.toString());
-            file = null;
-         }
-      } else if (content instanceof URI) {
-         try {
-            file = new File((URI) content);
-         } catch (Exception e) {
-            logger.error("Could not create a file from the specified URI: " + content.toString());
-            file = null;
-         }
-      } else if (content instanceof File) {
-         file = (File) content;
-      } else {
-         logger.error("Could not create a File from input! Class: "
-               + content.getClass().getSimpleName() + " Content: " + content.toString());
-         file = null;
-      }
-      if (file == null) {
-         return "";
-      }
-      Base64 enc = new Base64();
-      //the value has to be converted to String; if it is already just take it, if it is not
-      //try different things 
-      try {
-         byte[] bytes = enc.encode(getBytesFromFile(file));
-         CRC32 crc = new CRC32();
-         crc.update(bytes);
-         this.setChecksum("CRC32$" + crc.getValue());
-         this.setFilename(file.getName());
-         this.setEncoder("Base64");
-         encoded = new String(bytes, "UTF-8");
-      } catch (Exception e) {
-         logger.error("An error occurred during encoding: " + e.getLocalizedMessage());
-      }
-      return encoded;
-   }
-
-
-   //****************************************************************
-   //*****					Overrides for TreeNode			**********
-   //****************************************************************
-   @Override
-   public Enumeration<TreeNode> children() {
-      return null;
-   }
-
-
-   @Override
-   public boolean getAllowsChildren() {
-      return false;
-   }
-
-
-   @Override
-   public TreeNode getChildAt(int childIndex) {
-      return null;
-   }
-
-
-   @Override
-   public int getChildCount() {
-      return 0;
-   }
-
-
-   @Override
-   public int getIndex(TreeNode node) {
-      return 0;
-   }
-
-
-   @Override
-   public Property getParent() {
-      return this.parent;
-   }
-
-
-   @Override
-   public boolean isLeaf() {
-      return true;
-   }
-
-
-   @Override
-   public String toString() {
-      String s = "";
-      if (this.getContent() != null)
-         s = s.concat(this.getContent().toString());
-      if (this.getUncertainty() != null && !this.getUncertainty().toString().isEmpty())
-         s = s.concat("+-" + this.getUncertainty().toString());
-      if (this.getUnit() != null)
-         s = s.concat(" " + this.getUnit());
-      return s;
-   }
-
-
-   
-   
-    /* (non-Javadoc)
-     * @see java.lang.Object#hashCode()
-     */
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + ((checksum == null) ? 0 : checksum.hashCode());
-        result = prime * result + ((content == null) ? 0 : content.hashCode());
-        result = prime * result + ((definition == null) ? 0 : definition.hashCode());
-        result = prime * result + ((encoder == null) ? 0 : encoder.hashCode());
-        result = prime * result + ((filename == null) ? 0 : filename.hashCode());
-        
-        // cannot use parent - would cause infinite loop
-        //result = prime * result + ((parent == null) ? 0 : parent.hashCode());
-        
-        result = prime * result + ((reference == null) ? 0 : reference.hashCode());
-        result = prime * result + ((type == null) ? 0 : type.hashCode());
-        result = prime * result + ((uncertainty == null) ? 0 : uncertainty.hashCode());
-        result = prime * result + ((unit == null) ? 0 : unit.hashCode());
-        return result;
-    }
-    
-    
-    /* (non-Javadoc)
-     * @see java.lang.Object#equals(java.lang.Object)
-     */
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) { return true; }
-        if (obj == null) { return false; }
-        if (getClass() != obj.getClass()) { return false; }
-        Value other = (Value) obj;
-        if (checksum == null) {
-            if (other.checksum != null) { return false; }
-        } else if (!checksum.equals(other.checksum)) { return false; }
-        if (content == null) {
-            if (other.content != null) { return false; }
-        } else if (!content.equals(other.content)) { return false; }
-        if (definition == null) {
-            if (other.definition != null) { return false; }
-        } else if (!definition.equals(other.definition)) { return false; }
-        if (encoder == null) {
-            if (other.encoder != null) { return false; }
-        } else if (!encoder.equals(other.encoder)) { return false; }
-        if (filename == null) {
-            if (other.filename != null) { return false; }
-        } else if (!filename.equals(other.filename)) { return false; }
-        
-        // cannot use parent - would cause infinite loop
-        /*if (parent == null) {
-            if (other.parent != null) { return false; }
-        } else if (!parent.equals(other.parent)) { return false; }*/
-        
-        if (reference == null) {
-            if (other.reference != null) { return false; }
-        } else if (!reference.equals(other.reference)) { return false; }
-        if (type == null) {
-            if (other.type != null) { return false; }
-        } else if (!type.equals(other.type)) { return false; }
-        if (uncertainty == null) {
-            if (other.uncertainty != null) { return false; }
-        } else if (!uncertainty.equals(other.uncertainty)) { return false; }
-        if (unit == null) {
-            if (other.unit != null) { return false; }
-        } else if (!unit.equals(other.unit)) { return false; }
-        return true;
-    }
-
-
-    public Map<String, Object> getMap() {
-        Map<String, Object> self = new HashMap<String, Object>();
-        self.put("type", type);
-        self.put("uncertainty", uncertainty);
-        self.put("unit", unit);
-        self.put("reference", reference);
-        self.put("definition", definition);
-        self.put("filename", filename);
-        self.put("encoder", encoder);
-        self.put("checksum", checksum);
-        return self;
-    }
+public class Value extends Object implements Serializable, Cloneable {
+
+	/** The logger. */
+	static Logger logger = LoggerFactory.getLogger(Value.class);
+
+	/** The Constant serialVersionUID. */
+	private static final long serialVersionUID = 147L;
+
+	/** The reference. */
+	private String unit = null, type = null, reference = null;
+
+	/** The uncertainty. */
+	private Object content, uncertainty;
+
+	/** The encoder. */
+	private String definition, filename, checksum, encoder;
+
+	/** The parent. */
+	private Property parent;
+
+	/** The Constant dateFormat. */
+	private final static SimpleDateFormat dateFormat = new SimpleDateFormat(
+			"yyyy-MM-dd");
+
+	/** The Constant datetimeFormat. */
+	private final static SimpleDateFormat datetimeFormat = new SimpleDateFormat(
+			"yyyy-MM-dd hh:mm:ss");
+
+	/** The Constant timeFormat. */
+	private final static SimpleDateFormat timeFormat = new SimpleDateFormat(
+			"hh:mm:ss");
+
+	/** The Constant regExNTuple. */
+	private final static String regExNTuple = "(?i)[0-9]{1,};[0-9]{1,}";
+
+	// *****************************************************************
+	// ************** constructors ***********
+	// *****************************************************************
+	/**
+	 * Instantiates a new value.
+	 * 
+	 * @param content
+	 *            the content
+	 * @param unit
+	 *            the unit
+	 * @throws Exception
+	 *             the exception
+	 */
+	protected Value(Object content, String unit) throws Exception {
+		this(content, unit, null, null);
+	}
+
+	/**
+	 * Instantiates a new value.
+	 * 
+	 * @param content
+	 *            the content
+	 * @param unit
+	 *            the unit
+	 * @param uncertainty
+	 *            the uncertainty
+	 * @throws Exception
+	 *             the exception
+	 */
+	protected Value(Object content, String unit, Object uncertainty)
+			throws Exception {
+		this(content, unit, uncertainty, null);
+	}
+
+	/**
+	 * Instantiates a new value.
+	 * 
+	 * @param content
+	 *            the content
+	 * @param unit
+	 *            the unit
+	 * @param uncertainty
+	 *            the uncertainty
+	 * @param type
+	 *            the type
+	 * @throws Exception
+	 *             the exception
+	 */
+	protected Value(Object content, String unit, Object uncertainty, String type)
+			throws Exception {
+		this(content, unit, uncertainty, type, null, null, null);
+	}
+
+	/**
+	 * Creates a Value from a Vector containing the value data in the following
+	 * sequence: "content","unit","uncertainty","type","fileName","definition",
+	 * "reference".
+	 * 
+	 * @param data
+	 *            {@link Vector} of Objects that contains the data in the
+	 *            sequence as the {@link Value}
+	 * @throws Exception
+	 *             the exception
+	 */
+	protected Value(Vector<Object> data) throws Exception {
+		this(data.get(0), (String) data.get(1), data.get(2), (String) data
+				.get(3), (String) data.get(4), (String) data.get(5),
+				(String) data.get(6));
+	}
+
+	/**
+	 * Constructor for a Value containing all possible information. Any of the
+	 * arguments may be null except for Object value and it's unit.
+	 * 
+	 * @param content
+	 *            the content
+	 * @param unit
+	 *            the unit
+	 * @param uncertainty
+	 *            the uncertainty
+	 * @param type
+	 *            the type
+	 * @param filename
+	 *            the filename
+	 * @param definition
+	 *            the definition
+	 * @param reference
+	 *            the reference
+	 * @throws Exception
+	 *             the exception
+	 */
+	protected Value(Object content, String unit, Object uncertainty,
+			String type, String filename, String definition, String reference)
+			throws Exception {
+		this(content, unit, uncertainty, type, filename, definition, reference,
+				"", "");
+	}
+
+	/**
+	 * Instantiates a new value.
+	 * 
+	 * @param content
+	 *            the content
+	 * @param unit
+	 *            the unit
+	 * @param uncertainty
+	 *            the uncertainty
+	 * @param type
+	 *            the type
+	 * @param filename
+	 *            the filename
+	 * @param definition
+	 *            the definition
+	 * @param reference
+	 *            the reference
+	 * @param encoder
+	 *            the encoder
+	 * @throws Exception
+	 *             the exception
+	 */
+	protected Value(Object content, String unit, Object uncertainty,
+			String type, String filename, String definition, String reference,
+			String encoder) throws Exception {
+		this(content, unit, uncertainty, type, filename, definition, reference,
+				encoder, "");
+	}
+
+	/**
+	 * Instantiates a new value.
+	 * 
+	 * @param content
+	 *            the content
+	 * @param unit
+	 *            the unit
+	 * @param uncertainty
+	 *            the uncertainty
+	 * @param type
+	 *            the type
+	 * @param filename
+	 *            the filename
+	 * @param definition
+	 *            the definition
+	 * @param reference
+	 *            the reference
+	 * @param encoder
+	 *            the encoder
+	 * @param checksum
+	 *            the checksum
+	 * @throws Exception
+	 *             the exception
+	 */
+	protected Value(Object content, String unit, Object uncertainty,
+			String type, String filename, String definition, String reference,
+			String encoder, String checksum) throws Exception {
+		if (type == null || type.isEmpty()) {
+			type = inferOdmlType(content);
+		}
+		this.content = null;
+		this.uncertainty = null;
+		this.filename = "";
+		this.definition = "";
+		this.reference = "";
+		this.checksum = "";
+		this.encoder = "";
+		this.type = type;
+		if (type.equalsIgnoreCase("binary")) {
+			this.content = encodeContent(content);
+		} else {
+			this.content = checkDatatype(content, type);
+		}
+		if (uncertainty == null) {
+			this.uncertainty = "";
+		} else {
+			try {
+				this.uncertainty = uncertainty;
+			} catch (Exception e) {
+				this.uncertainty = "";
+				logger.error("", e);
+			}
+		}
+		if (filename != null && !filename.isEmpty()) {
+			this.filename = filename;
+		}
+		if (definition == null) {
+			this.definition = "";
+		} else {
+			this.definition = definition;
+		}
+		if (reference == null) {
+			this.reference = "";
+		} else {
+			this.reference = reference;
+		}
+		if (unit == null) {
+			this.unit = "";
+		} else {
+			this.unit = unit;
+		}
+	}
+
+	/**
+	 * Returns whether or not a {@link Value} is empty.
+	 * 
+	 * @return {@link Boolean}: true if value is empty, false otherwise.
+	 */
+	public boolean isEmpty() {
+		return (content == null)
+				|| (content != null && content instanceof String && ((String) content)
+						.isEmpty());
+	}
+
+	/**
+	 * Checks the passed values class and returns the odML type.
+	 * 
+	 * @param value
+	 *            {@link Object} the value;
+	 * @return {@link String} the type under which odml refers to it.
+	 */
+	public static String inferOdmlType(Object value) {
+		if (value instanceof Integer) {
+			return "int";
+		} else if (value instanceof Boolean) {
+			return "boolean";
+		} else if (value instanceof LocalDate) {
+			return "date";
+		} else if (value instanceof LocalTime) {
+			return "time";
+		} else if (value instanceof Date) {
+			return "datetime";
+		} else if (value instanceof Float) {
+			return "float";
+		} else if (value instanceof Double) {
+			return "float";
+		} else if (value instanceof URL) {
+			return "url";
+		} else if (value instanceof File) {
+			return "binary";
+		} else if (value instanceof String) {
+			return inferDatatypeFromString(value.toString());
+		} else if (value == null) {
+			return "NULL";
+		}
+		return "string";
+	}
+
+	/**
+	 * Checks and converts the content passed to the Value.
+	 * 
+	 * @param content
+	 *            Object: The content that needs to be checked.
+	 * @param type
+	 *            String: The type of the content
+	 * @return returns the content in the correct class or null if an error
+	 *         occurred.
+	 */
+	public static Object checkDatatype(Object content, String type) {
+		if (content == null || content.toString().isEmpty()) {
+			logger.info("Found empty content!!!");
+			return null;
+		}
+		if (type.matches("(?i)int.*")) {
+			if (content instanceof java.lang.Integer) {
+				return content;
+			} else if (content instanceof java.lang.String) {
+				if (((java.lang.String) content).contains(".")
+						|| ((String) content).contains(",")) {
+					int index = ((String) content).indexOf(".");
+					if (index == -1)
+						index = ((String) content).indexOf(",");
+					content = ((String) content).substring(0, index);
+				}
+				return Integer.parseInt((String) content);
+			} else if (content instanceof Number) {
+				return ((Number) content).intValue();
+			} else {
+				logger.error("Cannot convert value of class "
+						+ content.getClass().getSimpleName()
+						+ " to requested type: " + type);
+				return null;
+			}
+		} else if (type.matches("(?i)float.*")) {
+			if (content instanceof Number) {
+				return ((Number) content).floatValue();
+			} else if (content instanceof java.lang.String) { // float could be
+																// masked as
+																// string
+				return Float.parseFloat((String) content);
+			} else {
+				logger.error("Cannot convert value of class "
+						+ content.getClass().getSimpleName()
+						+ " to requested type " + type);
+				return null;
+			}
+		} else if (type.matches("(?i)string") || type.matches("(?i)text")) {
+			logger.debug("type specified:\tstring");
+			if (content instanceof String) {
+				return content;
+			} else if (content instanceof Character) {
+				return ((Character) content).toString();
+			} else {
+				logger.error("Error converting content of class: "
+						+ content.getClass().getSimpleName()
+						+ " to requested type: " + type);
+				return null;
+			}
+		} else if (type.matches("(?i)n-tuple")) {
+			if (content instanceof String
+					&& ((String) content).matches(regExNTuple)) {
+				return content;
+			} else {
+				logger.error("Value does not match the n-tuple definition (regExp: "
+						+ regExNTuple + ")!");
+				return null;
+			}
+		} else if (type.matches("(?i)date")) {
+			if (content instanceof LocalDate) {
+				try {
+					return new LocalDate(content);
+				} catch (Exception e) {
+					logger.error(e.getMessage());
+				}
+			} else if (content instanceof java.lang.String) {
+				try {
+					Date date = dateFormat.parse((String) content);
+					return new LocalDate(date);
+				} catch (Exception e) {
+					logger.error("Cannot convert passed String : " + content
+							+ " to a date value!");
+					return null;
+				}
+			} else {
+				logger.error("Cannot convert passed object of class: "
+						+ content.getClass().getSimpleName()
+						+ " to a date value!");
+				return null;
+			}
+		} else if (type.matches("(?i)time")) {
+			if (content instanceof LocalTime) {
+				try {
+					return new LocalTime(content);
+				} catch (Exception e) {
+					logger.error(e.getMessage());
+				}
+			} else if (content instanceof java.lang.String) {
+				try {
+					Date date = timeFormat.parse((String) content);
+					return new LocalTime(date);
+				} catch (Exception e) {
+					logger.error(e.getLocalizedMessage());
+				}
+			} else {
+				logger.error("Cannot convert passed object of class: "
+						+ content.getClass().getSimpleName()
+						+ " to a time value!");
+				return null;
+			}
+		} else if (type.matches("(?i)datetime")) {
+			if (content instanceof java.util.Date) {
+				try {
+					Date date = datetimeFormat.parse(datetimeFormat
+							.format(content));
+					return date;
+				} catch (Exception e) {
+					logger.error(e.getLocalizedMessage());
+				}
+			} else if (content instanceof java.lang.String) {
+				try {
+					Date date = datetimeFormat.parse((String) content);
+					return date;
+				} catch (Exception e) {
+					logger.error(e.getLocalizedMessage());
+				}
+			} else {
+				logger.error("Cannot convert passed object of class: "
+						+ content.getClass().getSimpleName()
+						+ " to a datetime value!");
+				return null;
+			}
+		} else if (type.matches("(?i)bool.*")) {
+			if (content instanceof java.lang.Boolean) {
+				return content;
+			} else if (content instanceof java.lang.String) {
+				return Boolean.parseBoolean((String) content);
+			} else {
+				logger.error("Cannot convert object of class: "
+						+ content.getClass().getSimpleName() + " to a " + type
+						+ ": value!");
+				return null;
+			}
+		} else if (type.matches("(?i)URL")) {
+			if (content instanceof java.net.URL) {
+				return content;
+			} else if (content instanceof java.lang.String) {
+				try {
+					URL parsedUrl = new URL((String) content);
+					return parsedUrl;
+				} catch (MalformedURLException e) {
+					logger.error(e.getLocalizedMessage());
+				}
+			} else {
+				logger.error("Could not convert "
+						+ content.getClass().getSimpleName()
+						+ " to required type: " + type);
+				return null;
+			}
+		} else if (type.matches("(?i)binary")) {
+			if (content instanceof java.lang.String || content instanceof File
+					|| content instanceof URL || content instanceof URI) {
+				return content;
+			} else {
+				logger.error("Binary (String), File, URL, or URI content expected, "
+						+ content.getClass().getSimpleName() + " found!");
+				return null;
+			}
+		} else if (type.matches("(?i)person")) {
+			if (!(content instanceof java.lang.String)) {
+				logger.error("Expect a person to be of class expected, not "
+						+ content.getClass());
+				return null;
+			} else {
+				return content;
+			}
+		} else if (type.equalsIgnoreCase("NULL")) {
+			if (content != null)
+				logger.warn("Content of type NULL contains a non null object. Ignoring the Content.");
+			return null;
+		} else {
+			type = "string";
+			logger.warn("type unknown:\thandling as 'string':\tcorrect");
+			return content;
+		}
+		return null;
+	}
+
+	/**
+	 * Checks a {@link String} in more detail, and returns the odml data type.
+	 * 
+	 * @param content
+	 *            {@link String}
+	 * @return {@link String}: the odml type that matches best.
+	 */
+	protected static String inferDatatypeFromString(String content) {
+		content = content.trim();
+		// String regExDate =
+		// "[0-9]{4}-(((([0][13-9])|([1][0-2]))-(([0-2][0-9])|([3][01])))|(([0][2]-[0-2][0-9])))";
+		// // String regExDateGeneral = "[0-9]{4}-[0-9]{2}-[0-9]{2}";
+		// String regExTime =
+		// "(([01][0-9])|([2][0-4])):(([0-5][0-9])|([6][0])):(([0-5][0-9])|([6][0]))";
+		// // for time
+		// // String regExTimeGeneral = "[0-9]{2}:[0-9]{2}:[0-9]{2}";
+		// String regExInt = "^[+-]?[0-9]+$";
+		// String regExFloat = "^[+-]?[0-9]*\\.[0-9]+$";
+		// String regExBool = "(true)|(false)|1|0";
+		// String regExDatetimeGeneral =
+		// "[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}";
+
+		HashMap<String, String> regExpMap = new HashMap<String, String>();
+		regExpMap
+				.put("date",
+						"[0-9]{4}-(((([0][13-9])|([1][0-2]))-(([0-2][0-9])|([3][01])))|(([0][2]-[0-2][0-9])))");
+		regExpMap.put("datetime",
+				"[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}");
+		regExpMap
+				.put("time",
+						"(([01][0-9])|([2][0-4])):(([0-5][0-9])|([6][0])):(([0-5][0-9])|([6][0]))");
+		regExpMap.put("int", "^[+-]?[0-9]+$");
+		regExpMap.put("float", "^[+-]?[0-9]*\\.[0-9]+$");
+		regExpMap.put("boolean", "(true)|(false)|1|0");
+		regExpMap.put("n-tuple", regExNTuple);
+		Iterator<String> iter = regExpMap.keySet().iterator();
+		while (iter.hasNext()) {
+			String key = iter.next();
+			if (content.toLowerCase().matches(regExpMap.get(key)))
+				return key;
+		}
+		return "string";
+	}
+
+	// ***************************************************************************************
+	// ***** methods to handle binary content **********
+	// ***************************************************************************************
+	/**
+	 * Function to convert the content of the indicated file to an array of
+	 * bytes. Is primarily for internal use to Base64 encode binary data.
+	 * 
+	 * @param file
+	 *            {@link File}: the file to convert.
+	 * @return byte[]: the array of bytes contained in the file.
+	 * @throws IOException
+	 *             Signals that an I/O exception has occurred.
+	 */
+	public static byte[] getBytesFromFile(File file) throws IOException {
+		InputStream in = new FileInputStream(file);
+		long length = file.length();
+		if (length > Integer.MAX_VALUE) {
+			throw new IOException("File exceeds max value: "
+					+ Integer.MAX_VALUE);
+		}
+		// Create the byte array to hold the data
+		byte[] bytes = new byte[(int) length];
+		// Read in the bytes
+		int offset = 0;
+		int numRead = 0;
+		while (offset < bytes.length
+				&& (numRead = in.read(bytes, offset, bytes.length - offset)) >= 0) {
+			offset += numRead;
+		}
+		// Ensure all the bytes have been read
+		if (offset < bytes.length) {
+			throw new IOException("Could not completely read file"
+					+ file.getName());
+		}
+		in.close();
+		return bytes;
+	}
+
+	/**
+	 * Writes the value content which is Base64 encoded to disc.
+	 * 
+	 * @param content
+	 *            {@link String}: the value content.
+	 * @param outFile
+	 *            {@link File}: the File into which the decoded content should
+	 *            be written
+	 * @throws Exception
+	 *             the exception
+	 */
+	public static void writeBinaryToDisc(String content, File outFile)
+			throws Exception {
+		if (outFile == null) {
+			throw new Exception("Argument outFile not specified!");
+		}
+		FileOutputStream os = null;
+		try {
+			os = new FileOutputStream(outFile);
+		} catch (Exception e) {
+			logger.error("", e);
+			throw e;
+		}
+		Base64 base = new Base64();
+		byte[] bytes = base.decode(content.getBytes("UTF-8"));
+		os.write(bytes);
+		os.flush();
+		os.close();
+	}
+
+	// ****************************************************************
+	// ***** getter & setter **********
+	// ****************************************************************
+	// associated property (so to say dad in tree)
+	/**
+	 * Sets the associated property.
+	 * 
+	 * @param property
+	 *            the new associated property
+	 */
+	protected void setAssociatedProperty(Property property) {
+		this.parent = property;
+	}
+
+	// value
+	/**
+	 * Sets the content.
+	 * 
+	 * @param content
+	 *            the new content
+	 */
+	protected void setContent(Object content) {
+		this.content = content;
+	}
+
+	/**
+	 * Gets the content.
+	 * 
+	 * @return the content
+	 */
+	protected Object getContent() {
+		return this.content;
+	}
+
+	// unit
+	/**
+	 * Sets the unit.
+	 * 
+	 * @param unit
+	 *            the new unit
+	 */
+	protected void setUnit(String unit) {
+		this.unit = unit;
+	}
+
+	/**
+	 * Gets the unit.
+	 * 
+	 * @return the unit
+	 */
+	protected String getUnit() {
+		return this.unit;
+	}
+
+	// uncertainty
+	/**
+	 * Sets the uncertainty.
+	 * 
+	 * @param uncertainty
+	 *            the new uncertainty
+	 */
+	protected void setUncertainty(Object uncertainty) {
+		this.uncertainty = uncertainty;
+	}
+
+	/**
+	 * Gets the uncertainty.
+	 * 
+	 * @return the uncertainty
+	 */
+	protected Object getUncertainty() {
+		return this.uncertainty;
+	}
+
+	// type
+	/**
+	 * Sets the type.
+	 * 
+	 * @param type
+	 *            the new type
+	 */
+	protected void setType(String type) {
+		this.type = type;
+	}
+
+	/**
+	 * Gets the type.
+	 * 
+	 * @return the type
+	 */
+	protected String getType() {
+		return this.type;
+	}
+
+	// Filename
+	/**
+	 * Sets the filename.
+	 * 
+	 * @param filename
+	 *            the new filename
+	 */
+	protected void setFilename(String filename) {
+		this.filename = filename;
+	}
+
+	/**
+	 * Gets the filename.
+	 * 
+	 * @return the filename
+	 */
+	protected String getFilename() {
+		return this.filename;
+	}
+
+	// definition
+	/**
+	 * Sets the definition.
+	 * 
+	 * @param comment
+	 *            the new definition
+	 */
+	protected void setDefinition(String comment) {
+		this.definition = comment;
+	}
+
+	/**
+	 * Gets the definition.
+	 * 
+	 * @return the definition
+	 */
+	protected String getDefinition() {
+		return this.definition;
+	}
+
+	// reference
+	/**
+	 * Sets the reference.
+	 * 
+	 * @param reference
+	 *            the new reference
+	 */
+	protected void setReference(String reference) {
+		this.reference = reference;
+	}
+
+	/**
+	 * Gets the reference.
+	 * 
+	 * @return the reference
+	 */
+	protected String getReference() {
+		return this.reference;
+	}
+
+	/**
+	 * Sets the encoder.
+	 * 
+	 * @param encoder
+	 *            the new encoder
+	 */
+	protected void setEncoder(String encoder) {
+		if (encoder == null || encoder.isEmpty())
+			this.encoder = "";
+		else
+			this.encoder = encoder;
+	}
+
+	/**
+	 * Gets the encoder.
+	 * 
+	 * @return the encoder
+	 */
+	protected String getEncoder() {
+		return this.encoder;
+	}
+
+	/**
+	 * Sets the checksum.
+	 * 
+	 * @param checksum
+	 *            the new checksum
+	 */
+	protected void setChecksum(String checksum) {
+		if (checksum == null || checksum.isEmpty())
+			this.checksum = "";
+		else
+			this.checksum = checksum;
+	}
+
+	/**
+	 * Gets the checksum.
+	 * 
+	 * @return the checksum
+	 */
+	protected String getChecksum() {
+		return this.checksum;
+	}
+
+	/**
+	 * Validates this {@link Value} against the terminology definition. This
+	 * function is marked @deprecated and will be removed in future versions!
+	 * 
+	 * Use validate instead!
+	 * 
+	 * @param termProp
+	 *            Property: The definition retrieved from a terminology.
+	 */
+	@Deprecated
+	public void compareToTerminology(Property termProp) {
+		validate(termProp);
+	}
+
+	/**
+	 * Validates a {@link Value} against the value definition in a terminology.
+	 * 
+	 * @param terminologyProperty
+	 *            {@link Property}: The respective {@link Property} that defines
+	 *            the kind of value.
+	 * 
+	 */
+	public void validate(Property terminologyProperty) {
+		if (this.type != null && !this.type.isEmpty()) {
+			if (!this.type.equalsIgnoreCase(terminologyProperty.getType())) {
+				logger.warn("Value type ("
+						+ this.type
+						+ ") does not match the one given in the terminology("
+						+ terminologyProperty.getType()
+						+ ")! To guarantee interoperability please ckeck. However, kept provided type.");
+			}
+		} else {
+			try {
+				checkDatatype(this.content, terminologyProperty.getType());
+				this.setType(terminologyProperty.getType());
+				logger.info("Added type information to value.");
+			} catch (Exception e) {
+				logger.warn("Value is not compatible with the type information the terminology suggests ("
+						+ terminologyProperty.getType()
+						+ "). Did not change anything, but please check");
+			}
+		}
+		if (this.unit != null && !this.unit.isEmpty()) {
+			if (!this.unit.equalsIgnoreCase(terminologyProperty.getUnit(0))) {
+				logger.warn("Value unit ("
+						+ this.unit
+						+ ") does not match the one given in the terminology("
+						+ terminologyProperty.getUnit()
+						+ ")! To guarantee interoperability please ckeck. However, kept provided unit.");
+			}
+		} else {
+			if (terminologyProperty.getUnit() != null
+					&& !terminologyProperty.getUnit(0).isEmpty()) {
+				this.setUnit(terminologyProperty.getUnit(0));
+				logger.info("Added unit " + terminologyProperty.getUnit()
+						+ " information to value.");
+			}
+		}
+	}
+
+	/**
+	 * TODO Compares the content of two values and returns whether they are
+	 * equal. So far this concerns only the value content. Not type,definition
+	 * etc.
+	 * 
+	 * @param other
+	 *            the other
+	 * @return {@link Boolean} <b>true</b> if the content of two values matches,
+	 *         <b>false</b> otherwise.
+	 */
+	public boolean isEqual(Value other) {
+		if (this.content.toString() != other.content.toString()) {
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * Base64 encodes the content if it represents either a File, URL, URI, or
+	 * String that can be converted to a file.
+	 * 
+	 * @param content
+	 *            the content
+	 * @return the string
+	 */
+	private String encodeContent(Object content) {
+		if (content == null) {
+			return null;
+		}
+		logger.info("Encoding content: " + content.toString());
+		String encoded = null;
+		File file = null;
+		if (content instanceof String) {
+			try {
+				URI uri = new URI((String) content);
+				file = new File(uri);
+			} catch (Exception e) {
+				return (String) content;
+			}
+		} else if (content instanceof URL) {
+			try {
+				file = new File(((URL) content).toURI());
+			} catch (Exception e) {
+				logger.error("Could not create a file from the specified URL: "
+						+ content.toString());
+				file = null;
+			}
+		} else if (content instanceof URI) {
+			try {
+				file = new File((URI) content);
+			} catch (Exception e) {
+				logger.error("Could not create a file from the specified URI: "
+						+ content.toString());
+				file = null;
+			}
+		} else if (content instanceof File) {
+			file = (File) content;
+		} else {
+			logger.error("Could not create a File from input! Class: "
+					+ content.getClass().getSimpleName() + " Content: "
+					+ content.toString());
+			file = null;
+		}
+		if (file == null) {
+			return "";
+		}
+		Base64 enc = new Base64();
+		// the value has to be converted to String; if it is already just take
+		// it, if it is not
+		// try different things
+		try {
+			byte[] bytes = enc.encode(getBytesFromFile(file));
+			CRC32 crc = new CRC32();
+			crc.update(bytes);
+			this.setChecksum("CRC32$" + crc.getValue());
+			this.setFilename(file.getName());
+			this.setEncoder("Base64");
+			encoded = new String(bytes, "UTF-8");
+		} catch (Exception e) {
+			logger.error("An error occurred during encoding: "
+					+ e.getLocalizedMessage());
+		}
+		return encoded;
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see java.lang.Object#toString()
+	 */
+	@Override
+	public String toString() {
+		String s = "";
+		if (this.getContent() != null)
+			s = s.concat(this.getContent().toString());
+		if (this.getUncertainty() != null
+				&& !this.getUncertainty().toString().isEmpty())
+			s = s.concat("+-" + this.getUncertainty().toString());
+		if (this.getUnit() != null)
+			s = s.concat(" " + this.getUnit());
+		return s;
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see java.lang.Object#hashCode()
+	 */
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result
+				+ ((checksum == null) ? 0 : checksum.hashCode());
+		result = prime * result + ((content == null) ? 0 : content.hashCode());
+		result = prime * result
+				+ ((definition == null) ? 0 : definition.hashCode());
+		result = prime * result + ((encoder == null) ? 0 : encoder.hashCode());
+		result = prime * result
+				+ ((filename == null) ? 0 : filename.hashCode());
+
+		// cannot use parent - would cause infinite loop
+		// result = prime * result + ((parent == null) ? 0 : parent.hashCode());
+
+		result = prime * result
+				+ ((reference == null) ? 0 : reference.hashCode());
+		result = prime * result + ((type == null) ? 0 : type.hashCode());
+		result = prime * result
+				+ ((uncertainty == null) ? 0 : uncertainty.hashCode());
+		result = prime * result + ((unit == null) ? 0 : unit.hashCode());
+		return result;
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see java.lang.Object#equals(java.lang.Object)
+	 */
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (obj == null) {
+			return false;
+		}
+		if (getClass() != obj.getClass()) {
+			return false;
+		}
+		Value other = (Value) obj;
+		if (checksum == null) {
+			if (other.checksum != null) {
+				return false;
+			}
+		} else if (!checksum.equals(other.checksum)) {
+			return false;
+		}
+		if (content == null) {
+			if (other.content != null) {
+				return false;
+			}
+		} else if (!content.equals(other.content)) {
+			return false;
+		}
+		if (definition == null) {
+			if (other.definition != null) {
+				return false;
+			}
+		} else if (!definition.equals(other.definition)) {
+			return false;
+		}
+		if (encoder == null) {
+			if (other.encoder != null) {
+				return false;
+			}
+		} else if (!encoder.equals(other.encoder)) {
+			return false;
+		}
+		if (filename == null) {
+			if (other.filename != null) {
+				return false;
+			}
+		} else if (!filename.equals(other.filename)) {
+			return false;
+		}
+
+		// cannot use parent - would cause infinite loop
+		/*
+		 * if (parent == null) { if (other.parent != null) { return false; } }
+		 * else if (!parent.equals(other.parent)) { return false; }
+		 */
+
+		if (reference == null) {
+			if (other.reference != null) {
+				return false;
+			}
+		} else if (!reference.equals(other.reference)) {
+			return false;
+		}
+		if (type == null) {
+			if (other.type != null) {
+				return false;
+			}
+		} else if (!type.equals(other.type)) {
+			return false;
+		}
+		if (uncertainty == null) {
+			if (other.uncertainty != null) {
+				return false;
+			}
+		} else if (!uncertainty.equals(other.uncertainty)) {
+			return false;
+		}
+		if (unit == null) {
+			if (other.unit != null) {
+				return false;
+			}
+		} else if (!unit.equals(other.unit)) {
+			return false;
+		}
+		return true;
+	}
+
+	public Map<String, Object> getMap() {
+		Map<String, Object> self = new HashMap<String, Object>();
+		self.put("type", type);
+		self.put("uncertainty", uncertainty);
+		self.put("unit", unit);
+		self.put("reference", reference);
+		self.put("definition", definition);
+		self.put("filename", filename);
+		self.put("encoder", encoder);
+		self.put("checksum", checksum);
+		return self;
+	}
 }
