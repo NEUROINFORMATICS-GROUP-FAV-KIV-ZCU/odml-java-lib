@@ -494,7 +494,7 @@ public class GUIHelper implements Serializable {
 			tags.add(list);
 		}
 		
-		Element list_units = new Element("list", "gui", "http://www.g-node.org/guiml");
+		Element list_units = new Element("listUnits", "gui", "http://www.g-node.org/guiml");
 		String list_units_ = getListUnits();
 		if (list_units_ != null) {
 			list_units.setText(list_units_.toString());
