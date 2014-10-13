@@ -81,11 +81,8 @@ public class Reader implements Serializable {
 
 	/**
 	 * Instantiates a new reader.
-	 * 
-	 * @throws Exception
-	 *             the exception
 	 */
-	public Reader() throws Exception {
+	public Reader() {
 		this(null);
 	}
 
@@ -94,10 +91,8 @@ public class Reader implements Serializable {
 	 * 
 	 * @param schemaLocations
 	 *            {@link URL}[]: the location of the validation schema.
-	 * @throws Exception
-	 *             the exception
 	 */
-	public Reader(URL[] schemaLocations) throws Exception {
+	public Reader(URL[] schemaLocations) {
 		this.schemaLocations = schemaLocations;
 	}
 
