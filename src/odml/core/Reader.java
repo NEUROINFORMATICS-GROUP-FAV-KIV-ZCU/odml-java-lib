@@ -102,6 +102,45 @@ public class Reader implements Serializable {
 	}
 
 	/**
+	 * Reads the odML document from the given InputStream and returns the root
+	 * section of the odML tree. This method does not load includes, does not
+	 * resolve links and does not apply mapping information.
+	 * 
+	 * @param stream
+	 *            the input stream
+	 * @return {@link Section} the root section of the metadata tree loaded from
+	 *         the input stream
+	 * @throws Exception
+	 * 
+	 * @author Jakub Krauz
+	 */
+	public Section load(InputStream stream) throws Exception {
+		return load(stream, false);
+	}
+
+	/**
+	 * Reads the odML document from the given InputStream and returns the root
+	 * section of the odML tree. This method does not load includes, does not
+	 * resolve links and does not apply mapping information. It validates the
+	 * tree if schemaLocations is given in the constructor
+	 * {@link #Reader(URL[])}
+	 * 
+	 * @param stream
+	 *            the input stream
+	 * @param validate
+	 *            if true validates the tree using schema, else no validation is
+	 *            applied
+	 * @return {@link Section} the root section of the metadata tree loaded from
+	 *         the input stream
+	 * @throws Exception
+	 * 
+	 * @author Jakub Krauz
+	 */
+	public Section load(InputStream stream, boolean validate) throws Exception {
+		return load(stream, NO_CONVERSION, validate);
+	}
+
+	/**
 	 * Reads a metadata file from the location specified in file parameter and
 	 * returns the root section of the odml tree. Function does not load
 	 * includes, resolves links or applies mapping information. Behavior of the
@@ -192,14 +231,40 @@ public class Reader implements Serializable {
 	 */
 	public Section load(URL fileURL, int option, boolean validate)
 			throws Exception {
-		Section s = null;
 		this.fileUrl = fileURL;
-		Document dom = parseXML(fileURL);
+		try {
+			InputStream stream = fileURL.openStream();
+			logger.info("Parsing the xml file: " + fileURL.toString() + "...");
+			return load(stream, option, validate);
+		} catch (IOException e) {
+			logger.error(
+					"Could not open file at specified url: "
+							+ fileURL.toString() + ". Verify connection!", e);
+			return null;
+		}
+	}
+
+	/**
+	 * Load the odML document from the given input stream.
+	 * 
+	 * @param stream
+	 *            the input stream
+	 * @param option
+	 * @param validate
+	 * @return {@link Section}: the root section of the loaded file.
+	 * @throws Exception
+	 */
+	public Section load(InputStream stream, int option, boolean validate)
+			throws Exception {
+		Section s = null;
+
+		Document dom = parseXML(stream);
 		if (dom == null) {
 			this.root = null;
 			return s;
 		}
-		logger.info("... parsing succeeded.");
+		logger.info("Parsing succeeded.");
+
 		if (validate && schemaLocations != null) {
 			isValid = validateXML(dom);
 			if (isValid)
@@ -209,6 +274,7 @@ public class Reader implements Serializable {
 		} else {
 			logger.info("Validation skipped on request.");
 		}
+
 		if (isValid) {
 			logger.info("Creating odML tree representation...");
 			createTree(dom);
@@ -216,6 +282,7 @@ public class Reader implements Serializable {
 		} else {
 			logger.error("Validation failed.");
 		}
+
 		if (option == LOAD_AND_RESOLVE || option == FULL_CONVERSION) {
 			loadIncludes();
 		}
@@ -227,6 +294,7 @@ public class Reader implements Serializable {
 		} else {
 			s = this.getRootSection();
 		}
+
 		return s;
 	}
 
@@ -293,42 +361,28 @@ public class Reader implements Serializable {
 	/**
 	 * Parses the xml file and creates the DOM representation of it.
 	 * 
-	 * @param url
-	 *            the url
 	 * @return Document - returns the Document (dom) representation of the
 	 *         xml-file or null if an error occured.
 	 * @throws IOException
-	 *             Signals that an I/O exception has occurred.
 	 */
-	private Document parseXML(URL url) throws IOException {
-		if (url == null) {
+	private Document parseXML(InputStream stream) {
+		if (stream == null) {
 			return null;
 		}
-		this.fileUrl = url;
-		logger.info("Parsing the xml file: " + url.toString() + "...");
+
 		try {
-			InputStream stream = null;
-			try {
-				stream = url.openStream();
-			} catch (Exception e) {
-				logger.error(
-						"Could not open file at specified url: "
-								+ url.toString() + ". Verify connection!", e);
-				return null;
-			}
 			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
 			DocumentBuilder dbuilder = dbf.newDocumentBuilder();
 			Document dom = dbuilder.parse(stream);
-			logger.info("... parsing succeeded!");
 			return dom;
 		} catch (ParserConfigurationException pce) {
-			logger.error("... parsing failed! ", pce);
+			logger.error("Parsing failed! ", pce);
 			return null;
 		} catch (IOException ioe) {
-			logger.error("... parsing failed! ", ioe);
+			logger.error("Parsing failed! ", ioe);
 			return null;
 		} catch (Exception e) {
-			logger.error("... parsing failed! ", e);
+			logger.error("Parsing failed! ", e);
 			return null;
 		}
 	}
@@ -527,7 +581,7 @@ public class Reader implements Serializable {
 		Property property = null;
 
 		GUIHelper guiHelper = new GUIHelper(domProperty);
-		
+
 		try {
 			property = new Property(name, tmpValues, definition, dependency,
 					dependencyValue, mapURL);
