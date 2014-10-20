@@ -54,7 +54,7 @@ public class GUIHelper implements Serializable {
 
 	private Integer order;
 	
-	private String label;
+	private String reference;
 	private String datatype;
 
 	public GUIHelper() {
@@ -79,7 +79,7 @@ public class GUIHelper implements Serializable {
 		listUnits = null;
 		isListUnitsActive = false;
 		
-		label = null;
+		reference = null;
 		datatype = null;
 	}
 
@@ -196,10 +196,10 @@ public class GUIHelper implements Serializable {
 		}
 		
 		{
-			String s_gui_label = getDirectChildContent(domProperty,
-					"gui:label");
-			if (s_gui_label != null)
-				setLabel(s_gui_label);
+			String s_gui_reference = getDirectChildContent(domProperty,
+					"gui:reference");
+			if (s_gui_reference != null)
+				setReference(s_gui_reference);
 		}
 		
 		{
@@ -415,12 +415,12 @@ public class GUIHelper implements Serializable {
 		this.stepSize = stepSize;
 	}
 	
-	public String getLabel() {
-		return label;
+	public String getReference() {
+		return reference;
 	}
 	
-	public void setLabel(String label) {
-		this.label = label;
+	public void setReference(String reference) {
+		this.reference = reference;
 	}
 	
 	public String getDatatype() {
@@ -553,12 +553,12 @@ public class GUIHelper implements Serializable {
 			tags.add(stepSize);
 		}
 		
-		Element label = new Element("label", "gui",
+		Element reference = new Element("reference", "gui",
 				"http://www.g-node.org/guiml");
-		String label_ = getLabel();
-		if (label_ != null) {
-			label.setText(label_.toString());
-			tags.add(label);
+		String reference_ = getReference();
+		if (reference_ != null) {
+			reference.setText(reference_.toString());
+			tags.add(reference);
 		}
 		
 		Element datatype = new Element("datatype", "gui",
