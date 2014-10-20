@@ -360,8 +360,11 @@ public class Writer implements Serializable {
 		sectionElement.addContent(name);
 
 		Element nameDefinition = new Element("definition");
-		nameDefinition.setText(section.getDefinition());
-		sectionElement.addContent(nameDefinition);
+		String definition = section.getDefinition();
+		if (definition != null) {
+			nameDefinition.setText(definition);
+			sectionElement.addContent(nameDefinition);
+		}
 
 		Element repository = new Element("repository");
 		URL termUrl = section.getRepository();
@@ -394,6 +397,7 @@ public class Writer implements Serializable {
 			reference.setText(sectionReference);
 			sectionElement.addContent(reference);
 		}
+		
 		// append the properties.
 		for (int i = 0; i < section.propertyCount(); i++) {
 			appendProperty(sectionElement, section.getProperty(i), asTemplate);
@@ -438,20 +442,20 @@ public class Writer implements Serializable {
 
 		Element nameDefinition = new Element("definition");
 		String nameDef = prop.getDefinition();
-		if (nameDef != null) {
+		if (nameDef != null && !nameDef.isEmpty()) {
 			nameDefinition.setText(nameDef);
 			propertyElement.addContent(nameDefinition);
 		}
 		Element dependency = new Element("dependency");
 		String dep = prop.getDependency();
-		if (dep != null) {
+		if (dep != null && !dep.isEmpty()) {
 			dependency.setText(dep);
 			propertyElement.addContent(dependency);
 		}
 
 		Element dependencyValue = new Element("dependencyValue");
 		String depVal = prop.getDependencyValue();
-		if (depVal != null) {
+		if (depVal != null && !depVal.isEmpty()) {
 			dependencyValue.setText(depVal);
 			propertyElement.addContent(dependencyValue);
 		}

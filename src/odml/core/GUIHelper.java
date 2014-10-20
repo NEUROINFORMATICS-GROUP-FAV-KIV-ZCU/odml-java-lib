@@ -53,6 +53,9 @@ public class GUIHelper implements Serializable {
 	private boolean isListUnitsActive;
 
 	private Integer order;
+	
+	private String label;
+	private String datatype;
 
 	public GUIHelper() {
 		editable = Boolean.valueOf(true);
@@ -75,6 +78,9 @@ public class GUIHelper implements Serializable {
 		
 		listUnits = null;
 		isListUnitsActive = false;
+		
+		label = null;
+		datatype = null;
 	}
 
 	public GUIHelper(org.w3c.dom.Element domProperty)
@@ -187,6 +193,20 @@ public class GUIHelper implements Serializable {
 					"gui:stepSize");
 			if (s_gui_stepSize != null)
 				setStepSize(Double.parseDouble(s_gui_stepSize));
+		}
+		
+		{
+			String s_gui_label = getDirectChildContent(domProperty,
+					"gui:label");
+			if (s_gui_label != null)
+				setLabel(s_gui_label);
+		}
+		
+		{
+			String s_gui_datatype = getDirectChildContent(domProperty,
+					"gui:datatype");
+			if (s_gui_datatype != null)
+				setDatatype(s_gui_datatype);
 		}
 	}
 	
@@ -395,6 +415,22 @@ public class GUIHelper implements Serializable {
 		this.stepSize = stepSize;
 	}
 	
+	public String getLabel() {
+		return label;
+	}
+	
+	public void setLabel(String label) {
+		this.label = label;
+	}
+	
+	public String getDatatype() {
+		return datatype;
+	}
+	
+	public void setDatatype(String datatype) {
+		this.datatype = datatype;
+	}
+	
 	public ArrayList<Element> getGUINamespaceTags()
 	{
 		ArrayList<Element> tags = new ArrayList<Element>();
@@ -515,6 +551,22 @@ public class GUIHelper implements Serializable {
 		if (stepSize_ != null) {
 			stepSize.setText(stepSize_.toString());
 			tags.add(stepSize);
+		}
+		
+		Element label = new Element("label", "gui",
+				"http://www.g-node.org/guiml");
+		String label_ = getLabel();
+		if (label_ != null) {
+			label.setText(label_.toString());
+			tags.add(label);
+		}
+		
+		Element datatype = new Element("datatype", "gui",
+				"http://www.g-node.org/guiml");
+		String datatype_ = getDatatype();
+		if (datatype_ != null) {
+			datatype.setText(datatype_.toString());
+			tags.add(datatype);
 		}
 		
 		return tags;
