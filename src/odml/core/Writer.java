@@ -56,6 +56,9 @@ public class Writer implements Serializable {
 
 	/** The as terminology. */
 	private final boolean asTerminology;
+	
+	/** Should the output contain GUI tags? */
+	private final boolean useGuiNamespace;
 
 	/** The doc. */
 	private Document doc;
@@ -87,7 +90,7 @@ public class Writer implements Serializable {
 	 *            {@link Section} the root Section of the metadata tree.
 	 */
 	public Writer(Section rootSection) {
-		this(rootSection, false);
+		this(rootSection, false, false);
 	}
 
 	/**
@@ -103,9 +106,10 @@ public class Writer implements Serializable {
 	 *            written in the serialization, otherwise only non-emty
 	 *            properties are processed.
 	 */
-	public Writer(Section rootSection, boolean asTerminology) {
+	public Writer(Section rootSection, boolean asTerminology, boolean useGuiNamespace) {
 		this.odmlTree = rootSection;
 		this.asTerminology = asTerminology;
+		this.useGuiNamespace = useGuiNamespace;
 		this.file = null;
 	}
 
@@ -156,6 +160,7 @@ public class Writer implements Serializable {
 		this.file = file;
 		this.odmlTree = rootSection;
 		this.asTerminology = asTerminology;
+		this.useGuiNamespace = true;  // due to compatibility with Anubhav's version
 	}
 
 	/**
@@ -468,10 +473,12 @@ public class Writer implements Serializable {
 		}
 
 		// append GUI
-		GUIHelper guiHelper = prop.getGuiHelper();
-		ArrayList<Element> guiTags = guiHelper.getGUINamespaceTags();
-		for(Element tag : guiTags)
-			propertyElement.addContent(tag);
+		if (useGuiNamespace) {
+			GUIHelper guiHelper = prop.getGuiHelper();
+			ArrayList<Element> guiTags = guiHelper.getGUINamespaceTags();
+			for(Element tag : guiTags)
+				propertyElement.addContent(tag);
+		}
 		
 		// appending the values.
 		for (int i = 0; i < prop.valueCount(); i++) {
