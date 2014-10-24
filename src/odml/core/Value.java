@@ -326,7 +326,8 @@ public class Value extends Object implements Serializable, Cloneable {
 		} else if (value instanceof File) {
 			return "binary";
 		} else if (value instanceof String) {
-			return inferDatatypeFromString(value.toString());
+			//return inferDatatypeFromString(value.toString());  // infer type from string content
+			return "string";  // preserve declared type (string)
 		} else if (value == null) {
 			return "NULL";
 		}
