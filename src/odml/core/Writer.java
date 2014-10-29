@@ -284,7 +284,8 @@ public class Writer implements Serializable {
 		doc.addContent(altInstr);
 		Element rootElement = new Element("odML");
 		rootElement.setAttribute("version", "1");
-		rootElement.addNamespaceDeclaration(Namespace.getNamespace("gui",
+		if (useGuiNamespace)
+			rootElement.addNamespaceDeclaration(Namespace.getNamespace("gui",
 				"http://www.g-node.org/guiml"));
 		doc.setRootElement(rootElement);
 		// if the odMLRoot has properties, a dummy root is added to ensure that
